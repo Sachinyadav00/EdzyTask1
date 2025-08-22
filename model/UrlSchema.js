@@ -8,22 +8,23 @@ const urlSchema = new mongoose.Schema(
       unique: true,
       trim: true,
     },
-    lastModified: {
-      type: Date,
-    },
-    changeFrequency: {
-      type: String,
-      enum: [
-        "always",
-        "hourly",
-        "daily",
-        "weekly",
-        "monthly",
-        "yearly",
-        "never",
-      ],
-      default: "daily",
-    },
+
+    outlinks: [
+      {
+        text: {
+          type: String,
+          trim: true,
+        },
+        href: {
+          type: String,
+          trim: true,
+        },
+        absoluteURL: {
+          type: String,
+          trim: true,
+        },
+      },
+    ],
   },
   { timestamps: true }
 );

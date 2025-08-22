@@ -2,36 +2,45 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const Url = require("../model/UrlSchema");
 
-const UrlInsidePage = async (req, res) => {
+const getUrlsofPage = async (req, res) => {
   const { url } = req.body;
+
   if (!url) {
     return res.status(400).json({ error: "URL is required" });
   }
+
   try {
-    const response = await axios.get(url, {
-      timeout: 10000,
-      httpsAgent: new (require("https").Agent)({ rejectUnauthorized: false }),
-    });
+    // Fetch page
+    const { data } = await axios.get(url);
+    const $ = cheerio.load(data);
 
-    const $ = cheerio.load(response.data);
+    // Collect links
     const links = [];
+    $("a").each((i, el) => {
+      const href = $(el).attr("href");
+      const text = $(el).text().trim();
 
-    $("a[href]").each((index, element) => {
-      const href = $(element).attr("href");
-      if (href && !links.includes(href)) {
-        links.push(href);
+      if (href) {
+        links.push({
+          text: text || "(no text)",
+          href: href,
+          absoluteURL: new URL(href, url).href, // ✅ matches schema
+        });
       }
     });
 
-    // Save the URL to the database
-    const urlDoc = new Url({ url });
-    await urlDoc.save();
+    // Save to DB
+    const savedDoc = await Url.create({
+      url,
+      outlinks: links,
+    });
 
-    return res.status(200).json({ links });
+    // Return saved doc
+    return res.json(savedDoc);
   } catch (error) {
-    console.error("Error fetching URL:", error);
-    return res.status(500).json({ error: "Failed to fetch URL" });
+    console.error("Error crawling:", error.message);
+    return res.status(500).json({ error: "Failed to crawl the URL" });
   }
 };
 
-module.exports = { UrlInsidePage };
+module.exports = { getUrlsofPage };
