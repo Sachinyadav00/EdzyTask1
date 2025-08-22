@@ -2,32 +2,36 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const Url = require("../model/UrlSchema");
 
-async function UrlInsidePage(sitemapUrl) {
+const UrlInsidePage = async (req, res) => {
+  const { url } = req.body;
+  if (!url) {
+    return res.status(400).json({ error: "URL is required" });
+  }
   try {
-    const { data } = await axios.get(sitemapUrl);
-    const $ = cheerio.load(data, { xmlMode: true });
-
-    const urls = [];
-    $("url").each((i, el) => {
-      urls.push({
-        url: $(el).find("loc").text(),
-        lastModified: $(el).find("lastmod").text(),
-        changeFrequency: $(el).find("changefreq").text(),
-      });
+    const response = await axios.get(url, {
+      timeout: 10000,
+      httpsAgent: new (require("https").Agent)({ rejectUnauthorized: false }),
     });
 
-    for (const urlObj of urls) {
-      await Url.findOneAndUpdate({ url: urlObj.url }, urlObj, {
-        upsert: true,
-        new: true,
-      });
-    }
+    const $ = cheerio.load(response.data);
+    const links = [];
 
-    return urls;
+    $("a[href]").each((index, element) => {
+      const href = $(element).attr("href");
+      if (href && !links.includes(href)) {
+        links.push(href);
+      }
+    });
+
+    // Save the URL to the database
+    const urlDoc = new Url({ url });
+    await urlDoc.save();
+
+    return res.status(200).json({ links });
   } catch (error) {
-    console.error("❌ Error fetching sitemap:", error);
-    throw error;
+    console.error("Error fetching URL:", error);
+    return res.status(500).json({ error: "Failed to fetch URL" });
   }
-}
+};
 
 module.exports = { UrlInsidePage };
